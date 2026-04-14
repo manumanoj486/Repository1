@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { getBase } from '../../lib/api'
+import DigiLockerButton from '../digilocker/DigiLockerButton'
 
 export default function GuestLayout() {
   const { profile, signOut } = useAuth()
@@ -43,11 +44,18 @@ export default function GuestLayout() {
             </NavLink>
           </nav>
 
+          {/* Right-side nav: DigiLocker → Profile → Sign Out */}
           <div className="flex items-center gap-3">
+            {/* DigiLocker button — before profile & sign out */}
+            <DigiLockerButton />
+
+            {/* Profile info */}
             <div className="hidden sm:block text-right">
               <div className="text-sm font-medium text-gray-900">{profile?.full_name || 'Guest'}</div>
               <div className="text-xs text-gray-500">{profile?.email}</div>
             </div>
+
+            {/* Sign Out */}
             <button
               onClick={handleSignOut}
               className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"

@@ -5,6 +5,7 @@ import { callFunction, parseApiError } from '../../lib/api'
 import { formatINR } from '../../lib/finance'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
 import ErrorAlert from '../../components/shared/ErrorAlert'
+import DigiLockerConnect from '../../components/digilocker/DigiLockerConnect'
 
 const STATUS_COLORS = {
   confirmed: 'bg-blue-100 text-blue-700',
@@ -113,6 +114,8 @@ export default function GuestDashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   async function loadBookings() {
+    setLoading(true)
+    setError('')
     try {
       const res = await callFunction('guest-bookings', { action: 'list' })
       setBookings(res.bookings || [])
@@ -160,7 +163,26 @@ export default function GuestDashboard() {
         </div>
       </div>
 
-      {error && <ErrorAlert message={error} onClose={() => setError('')} />}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2">
+            <span className="text-red-500 mt-0.5">⚠</span>
+            <div>
+              <p className="text-sm font-medium text-red-800">{error}</p>
+              <p className="text-xs text-red-600 mt-0.5">Your bookings could not be loaded.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setRefreshKey(k => k + 1)}
+            className="flex-shrink-0 text-xs font-semibold text-red-700 hover:text-red-900 underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* DigiLocker connection card */}
+      <DigiLockerConnect />
 
       {bookings.length === 0 ? (
         <div className="bg-white rounded-xl border border-dashed border-gray-200 py-16 text-center">

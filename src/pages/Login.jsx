@@ -28,15 +28,9 @@ export default function Login() {
     if (Object.keys(errs).length) { setErrors(errs); return }
     setLoading(true); setApiError('')
     try {
-      const { session, user } = await signIn({ email: form.email, password: form.password })
-      // Fetch role from profiles
-      const supabaseUrl = (typeof window !== 'undefined' && window.__PREVIEW_SUPABASE__?.url) || import.meta.env.VITE_SUPABASE_URL || ''
-      const anonKey = (typeof window !== 'undefined' && window.__PREVIEW_SUPABASE__?.anonKey) || import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-      const res = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${user?.id}&select=role`, {
-        headers: { apikey: anonKey, Authorization: `Bearer ${session?.access_token}` }
-      })
-      const profiles = await res.json()
-      const role = profiles?.[0]?.role
+      const data = await signIn({ email: form.email, password: form.password })
+      // Role is embedded in user_metadata (set at signup) — no extra REST call needed.
+      const role = data.user?.user_metadata?.role || 'guest'
       const base = getBase()
       if (role === 'admin') navigate(`${base}/admin`, { replace: true })
       else navigate(`${base}/guest`, { replace: true })

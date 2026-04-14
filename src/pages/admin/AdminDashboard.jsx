@@ -37,13 +37,16 @@ export default function AdminDashboard() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
+    setLoading(true)
+    setError('')
     callFunction('admin-dashboard', {})
-      .then(setData)
+      .then(d => { setData(d); setError('') })
       .catch(err => { const m = parseApiError(err); if (m) setError(m) })
       .finally(() => setLoading(false))
-  }, [])
+  }, [retryKey])
 
   if (loading) return <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>
 
@@ -57,7 +60,23 @@ export default function AdminDashboard() {
         <p className="text-sm text-gray-500 mt-1">Here's what's happening at Hotel Grand today.</p>
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{error}</div>}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2">
+            <span className="text-red-500 mt-0.5">⚠</span>
+            <div>
+              <p className="text-sm font-medium text-red-800">{error}</p>
+              <p className="text-xs text-red-600 mt-0.5">Dashboard stats could not be loaded.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setRetryKey(k => k + 1)}
+            className="flex-shrink-0 text-xs font-semibold text-red-700 hover:text-red-900 underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon="🛏️" label="Total Rooms" value={stats.totalRooms ?? 0} color="blue" />

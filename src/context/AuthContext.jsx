@@ -3,35 +3,60 @@ import { supabase } from '../lib/supabaseClient'
 
 const AuthContext = createContext(null)
 
+/** Build a minimal profile from auth user_metadata — works even without the DB. */
+function profileFromMeta(sessionUser) {
+  if (!sessionUser) return null
+  return {
+    id: sessionUser.id,
+    email: sessionUser.email || '',
+    full_name: sessionUser.user_metadata?.full_name || '',
+    role: sessionUser.user_metadata?.role || 'guest',
+    phone: sessionUser.user_metadata?.phone || '',
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
   async function fetchProfile(sessionUser, accessToken) {
-    if (!sessionUser || !accessToken) return
+    if (!sessionUser) return
+    // Always seed from user_metadata immediately so routing works right away.
+    const metaProfile = profileFromMeta(sessionUser)
+    setProfile(metaProfile)
+
+    if (!accessToken) return
+
+    // Then try to enrich from the DB (gets full_name, phone, admin-overridden role, etc.)
     try {
       const supabaseUrl = (typeof window !== 'undefined' && window.__PREVIEW_SUPABASE__?.url) || import.meta.env.VITE_SUPABASE_URL || ''
       const anonKey = (typeof window !== 'undefined' && window.__PREVIEW_SUPABASE__?.anonKey) || import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+      if (!supabaseUrl) return
       const res = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${sessionUser.id}&select=*`, {
         headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}` }
       })
+      if (!res.ok) return // keep metadata profile on non-2xx (table missing, network, etc.)
       const data = await res.json()
       if (Array.isArray(data) && data.length > 0) setProfile(data[0])
-    } catch { /* ignore */ }
+      // else keep metaProfile already set
+    } catch { /* network failure — metadata profile already set above */ }
   }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user, session.access_token)
-      setLoading(false)
+      if (session?.user) {
+        fetchProfile(session.user, session.access_token).finally(() => setLoading(false))
+      } else {
+        setLoading(false)
+      }
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null)
       if (session?.user) fetchProfile(session.user, session.access_token)
-      else { setProfile(null) }
+      else setProfile(null)
     })
 
     return () => subscription.unsubscribe()

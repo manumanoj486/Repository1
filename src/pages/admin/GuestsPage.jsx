@@ -5,6 +5,7 @@ import Button from '../../components/shared/Button'
 import FormInput from '../../components/shared/FormInput'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
 import ErrorAlert from '../../components/shared/ErrorAlert'
+import DocumentList from '../../components/digilocker/DocumentList'
 
 const emptyForm = { full_name: '', email: '', phone: '', password: '', confirmPassword: '' }
 
@@ -20,13 +21,46 @@ export default function GuestsPage() {
   const [deleteId, setDeleteId] = useState(null)
   const [search, setSearch] = useState('')
 
+  // DigiLocker modal state
+  const [digiGuest, setDigiGuest] = useState(null)   // guest object being inspected
+  const [digiData, setDigiData] = useState(null)      // { connected, connection, documents }
+  const [digiLoading, setDigiLoading] = useState(false)
+  const [digiConnections, setDigiConnections] = useState({}) // { user_id: true/false } cached map
+
   async function loadGuests() {
     try {
       const res = await callFunction('admin-guests', { action: 'list' })
       setGuests(res.guests || [])
+      // Fetch DigiLocker connection statuses for all guests
+      loadDigiConnections()
     } catch (err) {
       const m = parseApiError(err); if (m) setError(m)
     } finally { setLoading(false) }
+  }
+
+  async function loadDigiConnections() {
+    try {
+      const res = await callFunction('admin-digilocker', { action: 'list_connections' })
+      const map = {}
+      for (const c of res.connections || []) map[c.user_id] = true
+      setDigiConnections(map)
+    } catch {
+      // Non-fatal — silently skip if function not deployed yet
+    }
+  }
+
+  async function openDigiModal(guest) {
+    setDigiGuest(guest)
+    setDigiData(null)
+    setDigiLoading(true)
+    try {
+      const res = await callFunction('admin-digilocker', { action: 'get_documents', guest_user_id: guest.id })
+      setDigiData(res)
+    } catch (err) {
+      setDigiData({ connected: false, documents: [] })
+    } finally {
+      setDigiLoading(false)
+    }
   }
 
   useEffect(() => { loadGuests() }, [])
@@ -113,7 +147,7 @@ export default function GuestsPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  {['Name', 'Email', 'Phone', 'Joined', 'Actions'].map(h => (
+                  {['Name', 'Email', 'Phone', 'DigiLocker', 'Joined', 'Actions'].map(h => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -124,11 +158,29 @@ export default function GuestsPage() {
                     <td className="px-5 py-3 font-medium text-gray-900">{g.full_name || '—'}</td>
                     <td className="px-5 py-3 text-gray-600">{g.email}</td>
                     <td className="px-5 py-3 text-gray-600">{g.phone || '—'}</td>
+                    <td className="px-5 py-3">
+                      {digiConnections[g.id] ? (
+                        <button
+                          onClick={() => openDigiModal(g)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                        >
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          Connected
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="px-5 py-3 text-gray-500 text-xs">{new Date(g.created_at).toLocaleDateString('en-IN')}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <button onClick={() => openEdit(g)} className="text-blue-600 hover:underline text-xs font-medium">Edit</button>
                         <button onClick={() => setDeleteId(g.id)} className="text-red-600 hover:underline text-xs font-medium">Delete</button>
+                        {digiConnections[g.id] && (
+                          <button onClick={() => openDigiModal(g)} className="text-orange-600 hover:underline text-xs font-medium">Docs</button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -168,6 +220,48 @@ export default function GuestsPage() {
           <Button variant="outline" onClick={() => setDeleteId(null)} className="flex-1">Cancel</Button>
           <Button variant="danger" onClick={() => handleDelete(deleteId)} className="flex-1">Delete</Button>
         </div>
+      </Modal>
+
+      {/* DigiLocker Documents Modal */}
+      <Modal
+        open={!!digiGuest}
+        onClose={() => { setDigiGuest(null); setDigiData(null) }}
+        title={`DigiLocker — ${digiGuest?.full_name || 'Guest'}`}
+        size="xl"
+      >
+        {digiLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <LoadingSpinner size="lg" />
+          </div>
+        ) : !digiData?.connected ? (
+          <div className="text-center py-12">
+            <div className="text-5xl mb-3">🔐</div>
+            <p className="font-semibold text-gray-700">DigiLocker Not Connected</p>
+            <p className="text-sm text-gray-500 mt-1">This guest has not linked their DigiLocker account.</p>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {/* Connection summary */}
+            {digiData.connection && (
+              <div className="bg-orange-50 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                {digiData.connection.name && (
+                  <div><p className="text-xs text-gray-500 mb-0.5">Name</p><p className="font-semibold text-gray-800">{digiData.connection.name}</p></div>
+                )}
+                {digiData.connection.dob && (
+                  <div><p className="text-xs text-gray-500 mb-0.5">Date of Birth</p><p className="font-semibold text-gray-800">{digiData.connection.dob}</p></div>
+                )}
+                {digiData.connection.gender && (
+                  <div><p className="text-xs text-gray-500 mb-0.5">Gender</p><p className="font-semibold text-gray-800">{digiData.connection.gender}</p></div>
+                )}
+                {digiData.connection.eaadhar && (
+                  <div><p className="text-xs text-gray-500 mb-0.5">eAadhaar</p><p className="font-semibold text-gray-800">{digiData.connection.eaadhar}</p></div>
+                )}
+              </div>
+            )}
+            {/* Documents grid */}
+            <DocumentList documents={digiData.documents || []} loading={false} />
+          </div>
+        )}
       </Modal>
     </div>
   )

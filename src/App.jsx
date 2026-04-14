@@ -14,6 +14,8 @@ import GuestDashboard from './pages/guest/GuestDashboard'
 import GuestBooking from './pages/guest/GuestBooking'
 import GuestCheckout from './pages/guest/GuestCheckout'
 import BookingConfirmation from './pages/guest/BookingConfirmation'
+import DigiLockerCallback from './pages/guest/DigiLockerCallback'
+import DigiLockerDocuments from './pages/guest/DigiLockerDocuments'
 import LoadingSpinner from './components/shared/LoadingSpinner'
 
 const base = typeof window !== 'undefined' && window.__PREVIEW_BASE__ ? window.__PREVIEW_BASE__ : undefined
@@ -69,6 +71,8 @@ export default function App() {
               <Route path="book" element={<GuestBooking />} />
               <Route path="checkout" element={<GuestCheckout />} />
               <Route path="confirmation" element={<BookingConfirmation />} />
+              <Route path="digilocker" element={<DigiLockerDocuments />} />
+              <Route path="digilocker/callback" element={<DigiLockerCallback />} />
             </Route>
           </Route>
 
